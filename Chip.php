@@ -1,18 +1,28 @@
 <?php
 
-// defined('BASEPATH') or exit('No direct script access allowed');
+define("ROOT_URL", "https://gate.chip-in.asia");
 
-class Chip_api
+class Chip
 {
+  private static $_instance;
   private $require_empty_string_encoding = false;
 
-  public $brand_id;
+  private $brand_id;
   private $private_key;
   
-  public function __construct($option)
+  public static function get_instance($secret_key, $brand_id) {
+
+    if ( self::$_instance == null ) {
+      self::$_instance = new self($secret_key, $brand_id);
+    }
+
+    return self::$_instance;
+  }
+  
+  public function __construct($private_key, $brand_id)
   {
-    $this->private_key = $option[0];
-    $this->brand_id    = $option[1];
+    $this->private_key = $private_key;
+    $this->brand_id    = $brand_id;
   }
 
   public function create_payment($params)
@@ -116,7 +126,7 @@ class Chip_api
 
     $response = $this->request(
       $method,
-      sprintf("%s/api/v1%s", 'https://gate.chip-in.asia', $route),
+      sprintf("%s/api/v1%s", ROOT_URL, $route),
       $params,
       [
         'Content-type: application/json',
