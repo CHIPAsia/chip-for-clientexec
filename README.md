@@ -1,3 +1,5 @@
+<img src="./assets/logo.svg" alt="drawing" width="50"/>
+
 # CHIP for Clientexec
 
 This plugin adds CHIP payment method option to your Clientexec.
