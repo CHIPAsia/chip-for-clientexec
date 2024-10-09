@@ -33,12 +33,13 @@ class PluginChip extends GatewayPlugin
             )
         );
 
-        // echo '<h1>Hello World</h1>';
         return $variables;
     }
 
     public function singlePayment($params)
     {
+        CE_Lib::log(4, 'SinglePayment() initiated');
+
         // Set the credentials
         $brandId = $params['plugin_chip_Brand ID'];
         $secretKey = $params['plugin_chip_API Key'];
@@ -49,26 +50,63 @@ class PluginChip extends GatewayPlugin
         $succesURL = $params['invoiceviewURLSuccess'];
         $cancelURL = $params['invoiceviewURLCancel'];
 
-        if (empty($secretKey) || empty($brandId)) {
-            // do nothing
-        } else {
+        // Checking if brand ID and API Key not empty
+        if ((! empty($secretKey)) || (! empty($brandId))) {
             $chip   = Chip::get_instance($secretKey, $brandId);
             $result = $chip->payment_methods('MYR');
         }
 
+        // Initialize
         $invoiceNo = $params['invoiceNumber'];
-        $amount = round($params["invoiceTotal"], 2);
+        $invoiceTotal = round($params["invoiceTotal"], 2);
         $firstName = $params['userFirstName'];
         $lastName = $params['userLastName'];
         $email = $params['userEmail'];
         $currencyCode = $params['userCurrency'];
-        // $exchangeRate = !empty($params['plugin_uddoktapay_Exchange Rate']) ? $params['plugin_uddoktapay_Exchange Rate'] : 1;
 
+        // Checking for currency
         if ($currencyCode != 'MYR') {
-            echo 'Not MYR';
+            CE_Lib::log(4, 'Currency is not MYR (RM)');
+            exit();
         }
 
-        // exit;
+        // Checking for refund
+        if (isset($params['refund']) && $params['refund']) {
+            CE_Lib::log(4, 'Refund running in singlePayment()');
+
+            // Create plug in class to interact with CE.
+            $cPlugin = new Plugin($params['invoiceNumber'], 'chip', $this->user);
+            $cPlugin->setAmount($invoiceTotal);
+            $cPlugin->setAction('refund');
+
+            // Get transid
+            $transactionId = $params['invoiceRefundTransactionId'];
+
+            // Refund thru CHIP API
+            $result = $chip->refund_payment($transactionId, array('amount' => round($invoiceTotal  * 100)));    
+
+            // If error
+            if ( !array_key_exists( 'id', $result ) OR $result['status'] != 'success') {
+                CE_Lib::log(4, array(
+                    'status'  => 'error',
+                    'rawdata' => json_encode($result),
+                    'transid' => $transactionId,
+                  ));
+
+                  $cPlugin->PaymentRejected($this->user->lang("There was an error performing this operation.")." ".$result['status']);
+                  return $this->user->lang("There was an error performing this operation.")." ".$result['status'];
+            } else {
+                CE_Lib::log(4, array(
+                    'status'  => 'success',
+                    'rawdata' => json_encode($result),
+                    'transid' => $result['id'],
+                    'fees'    => $result['payment']['fee_amount'] / 100,
+                  ));
+
+                $cPlugin->PaymentAccepted($invoiceTotal, "CHIP refund of RM { $amount } was successfully processed.", $transactionId);
+                return array('AMOUNT' => $invoiceTotal);
+            }
+        }
 
         // Initialize parameter to create purchase
         $purchase_params = array(
@@ -92,7 +130,7 @@ class PluginChip extends GatewayPlugin
             //   'due_strict' => $params['dueStrict'] == 'on',
               'products'   => array([
                 'name'     => substr($params['invoiceDescription'], 0, 256),
-                'price'    => round($params['invoiceTotal'] * 100),
+                'price'    => round($invoiceTotal * 100),
               ]),
             ),
         );
@@ -102,21 +140,14 @@ class PluginChip extends GatewayPlugin
 
         header('Location:' . $create_payment['checkout_url'], true, 303);
         exit();
-
-        // Try and catch
-        // try {
-        //     // Call API Create Purchase
-        //     $create_payment = $chip->create_payment($purchase_params);
-        //     header('Location:' . $create_payment['checkout_url']);
-        //     exit();
-        // } catch (Exception $e) {
-        //     die("Initialization Error: " . $e->getMessage());
-        // }
-
     }
 
     public function credit($params) 
     {
+        CE_Lib::log(4, 'Refund in credit() initiated');
 
+        // Refund is true
+        $params['refund'] = true;
+        return $this->singlePayment($params);
     }
 }
