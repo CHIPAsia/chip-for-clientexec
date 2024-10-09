@@ -28,7 +28,7 @@ class PluginChipCallback extends PluginCallback
         }
 
         // Check for invoiceId
-        $pluginName = 'CHIP';
+        $pluginName = 'chip';
         $invoiceId = $payment['reference'];
         $cPlugin = new Plugin($invoiceId, $pluginName, $this->user);
 
@@ -52,6 +52,7 @@ class PluginChipCallback extends PluginCallback
         }
 
         $totalAmount = $payment['purchase']['total'] / 100;
+        $cPlugin->setTransactionID($payment['id']);
         $cPlugin->setAmount($totalAmount);
         $cPlugin->setAction('charge'); // charge or refund
 
@@ -59,7 +60,7 @@ class PluginChipCallback extends PluginCallback
         if ($payment['status'] == 'paid') {
             // There is a delay few seconds
             $transactionId = $payment['id'];
-            $transaction = "CHIP: Purchase (ID: $$transactionId) with Invoice No: #$invoiceId was successfully PAID";
+            $transaction = "CHIP: Purchase (ID: $transactionId) with Invoice No: #$invoiceId was successfully PAID";
             CE_Lib::log(4, $transaction);
             
 
