@@ -83,6 +83,14 @@ class Chip
     return $this->call('POST', "/purchases/$purchase_id/delete_recurring_token/");
   }
 
+  public function retrieve_token($client_id) {
+    return $this->call('GET', "/clients/{$client_id}/recurring_tokens/{$client_id}/");
+  }
+
+  public function list_tokens($client_id) {
+    return $this->call('GET', "/clients/{$client_id}/recurring_tokens/");
+  }
+
   public function refund_payment($payment_id, $params)
   {
     $result = $this->call('POST', "/purchases/{$payment_id}/refund/", $params);
