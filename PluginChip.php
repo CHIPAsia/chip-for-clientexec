@@ -58,13 +58,8 @@ class PluginChip extends GatewayPlugin
 
     public function credit($params) 
     {
-        die();
         $params['refund'] = true;
-        return $this->singlePayment($params);
-
-        // $user = new User($params['CustomerID']);
-        // $this->getBillingProfileID($user);
-        
+        return $this->singlePayment($params);        
     }
 
     public function autopayment($params) 
@@ -106,6 +101,7 @@ class PluginChip extends GatewayPlugin
         $cPlugin = new Plugin($params['invoiceNumber'], 'chip', $this->user);
         $cPlugin->setAmount($invoiceTotal);
 
+        // Future development for recurring payment
         // Check if transaction is recurring
         // if ($params['billingCycle'] == 1 ) {
         //     CE_Lib::log(4, 'Transaction is recurring!');
@@ -193,107 +189,5 @@ class PluginChip extends GatewayPlugin
 
         header('Location:' . $create_payment['checkout_url'], true, 303);
         exit();
-    }
-
-    // Get customer CHIP Profile (Future Development)
-    public function getBillingProfileID($user)
-    {
-        CE_Lib::log(4, 'In getBillingProfileID()');
-        CE_Lib::log(4,  $user);
-        
-        // test purpose
-        $secretKey = $this->settings->get('plugin_chip_API Key');
-        $brandId = $this->settings->get('plugin_chip_Brand ID');
-
-        $profile_id = '';
-        $payment_method = '';
-        $Billing_Profile_ID = '';
-
-        $secretKey = $this->settings->get('plugin_chip_API Key');
-        $brandId = $this->settings->get('plugin_chip_Brand ID');
-
-        CE_Lib::log(4, "Billing-Profile-ID");
-        CE_Lib::log(4, $user->getCustomFieldsValue('Billing-Profile-ID', $Billing_Profile_ID));
-
-        if ($user->getCustomFieldsValue('Billing-Profile-ID', $Billing_Profile_ID) && $Billing_Profile_ID != '') {
-            $profile_id_array = unserialize($Billing_Profile_ID);
-            CE_Lib::log(4, "Displaying Profile ID Array");
-            CE_Lib::log(4, $profile_id_array);
-            
-            if (is_array($profile_id_array) && isset($profile_id_array[basename(dirname(__FILE__))])) {
-                $profile_id = $profile_id_array[basename(dirname(__FILE__))];
-            }
-        }
-
-        CE_Lib::log(4, "Displaying Profile ID");
-        CE_Lib::log(4, $profile_id);
-
-        $profile_id_values_array = explode('|', $profile_id);
-        $profile_id = $profile_id_values_array[0];
-
-        if (isset($profile_id_values_array[1])) {
-            $payment_method = $profile_id_values_array[1];
-            CE_Lib::log(4, $payment_method);
-        } else {
-            CE_Lib::log(4, 'Else profile id value not set');
-            if ($profile_id != '') {
-                try {
-                    // Get the client 
-                    $chip   = Chip::get_instance($secretKey, $brandId);
-                    $customers_api = $chip->get_client_by_email($user->fields['email'])['results'][0];
-
-                    try {
-                        // $result = $customers_api->retrieveCustomer($profile_id);
-
-
-                        // Retrieve list of recurring tokens of clients
-                        $recurring_tokens = $chip->list_tokens($customers_api['id'])['results'];
-                        CE_Lib::log(4, $recurring_tokens);
-
-                    } catch (Exception $e) {
-                        $profile_id = '';
-                    }
-                } catch (Exception $e) {
-                    $profile_id = '';
-                }
-            } else {
-                CE_Lib::log(4, 'Profile ID is empty');
-            }
-        }
-
-        $profile_id_values_array[0] = $profile_id;
-        $profile_id_values_array[1] = $payment_method;
-
-        // $this->setBillingProfileID($user, $profile_id_values_array);
-
-        // return $profile_id_values_array;
-
-        CE_Lib::log(4, 'End of getBillingProfileID()');
-    }
-
-    // set Billing-Profile-ID
-    public function setBillingProfileID($user, $profile_id_values_array)
-    {
-        $profile_id = $profile_id_values_array[0];
-        $payment_method = $profile_id_values_array[1];
-        $Billing_Profile_ID = '';
-        $profile_id_array = array();
-
-        if ($user->getCustomFieldsValue('Billing-Profile-ID', $Billing_Profile_ID) && $Billing_Profile_ID != '') {
-            $profile_id_array = unserialize($Billing_Profile_ID);
-        }
-
-        if (!is_array($profile_id_array)) {
-            $profile_id_array = array();
-        }
-
-        if ($profile_id != '' && $payment_method != '') {
-            $profile_id_array[basename(dirname(__FILE__))] = $profile_id.'|'.$payment_method;
-        } else {
-            unset($profile_id_array[basename(dirname(__FILE__))]);
-        }
-
-        $user->updateCustomTag('Billing-Profile-ID', serialize($profile_id_array));
-        $user->save();
     }
 }
