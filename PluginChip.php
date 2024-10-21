@@ -28,7 +28,7 @@ class PluginChip extends GatewayPlugin
             ),
             lang("Signup Name") => array(
                 "type"          => "text",
-                "description"   => lang("Select the name to display in the signup process for this payment type. Example: Mollie iDeal."),
+                "description"   => lang("Select the name to display in the signup process for this payment type."),
                 "value"         => "CHIP"
             ),
             lang('Auto Payment') => array(
@@ -53,29 +53,24 @@ class PluginChip extends GatewayPlugin
 
     public function singlePayment($params)
     {
-        // CE_Lib::log(4, $params);
-        // die();
         return $this->autopayment($params);
     }
 
     public function credit($params) 
     {
-        // CE_Lib::log(4, $this->settings->get('plugin_chip_Brand ID'));
-        // die();
-        // $params['refund'] = true;
-        // return $this->singlePayment($params);
+        die();
+        $params['refund'] = true;
+        return $this->singlePayment($params);
 
         // $user = new User($params['CustomerID']);
         // $this->getBillingProfileID($user);
-        die();
+        
     }
 
     public function autopayment($params) 
     {
         // Check for autopayment
         CE_Lib::log(4, 'AutoPayment() initiated');
-
-        // die();
 
         // Set the credentials
         $brandId = $params['plugin_chip_Brand ID'];
@@ -111,23 +106,27 @@ class PluginChip extends GatewayPlugin
         $cPlugin = new Plugin($params['invoiceNumber'], 'chip', $this->user);
         $cPlugin->setAmount($invoiceTotal);
 
-        try {
-            // User
-            $user = new User($params['CustomerID']);
-            CE_Lib::log(4, 'Create user!');
-            CE_Lib::log(4, $user);
-            $this->getBillingProfileID($user);
+        // Check if transaction is recurring
+        // if ($params['billingCycle'] == 1 ) {
+        //     CE_Lib::log(4, 'Transaction is recurring!');
+        //     die();
+        // } 
+
+        // try {
+        //     // User
+        //     $user = new User($params['CustomerID']);
+        //     CE_Lib::log(4, 'Create user!');
+        //     CE_Lib::log(4, $user);
+        //     $this->getBillingProfileID($user);
            
-            die();
+        //     die();
 
-        } catch (Exception $e) {
-            CE_Lib::log(1, $this->user->lang("There was an error performing this operation.")." ".$e->getMessage());
+        // } catch (Exception $e) {
+        //     CE_Lib::log(1, $this->user->lang("There was an error performing this operation.")." ".$e->getMessage());
 
-            $cPlugin->PaymentRejected($this->user->lang("There was an error performing this operation.")." ".$e->getMessage());
-            return $this->user->lang("There was an error performing this operation.")." ".$e->getMessage();
-        }
-
-        die();
+        //     $cPlugin->PaymentRejected($this->user->lang("There was an error performing this operation.")." ".$e->getMessage());
+        //     return $this->user->lang("There was an error performing this operation.")." ".$e->getMessage();
+        // }
 
         // Checking for refund
         if (isset($params['refund']) && $params['refund']) {
@@ -196,13 +195,12 @@ class PluginChip extends GatewayPlugin
         exit();
     }
 
-    // Get customer CHIP Profile
+    // Get customer CHIP Profile (Future Development)
     public function getBillingProfileID($user)
     {
         CE_Lib::log(4, 'In getBillingProfileID()');
         CE_Lib::log(4,  $user);
         
-        die();
         // test purpose
         $secretKey = $this->settings->get('plugin_chip_API Key');
         $brandId = $this->settings->get('plugin_chip_Brand ID');
@@ -214,9 +212,8 @@ class PluginChip extends GatewayPlugin
         $secretKey = $this->settings->get('plugin_chip_API Key');
         $brandId = $this->settings->get('plugin_chip_Brand ID');
 
-        CE_Lib::log(4, "Billig-Profile-ID");
+        CE_Lib::log(4, "Billing-Profile-ID");
         CE_Lib::log(4, $user->getCustomFieldsValue('Billing-Profile-ID', $Billing_Profile_ID));
-        // die();
 
         if ($user->getCustomFieldsValue('Billing-Profile-ID', $Billing_Profile_ID) && $Billing_Profile_ID != '') {
             $profile_id_array = unserialize($Billing_Profile_ID);
@@ -252,7 +249,6 @@ class PluginChip extends GatewayPlugin
                         // Retrieve list of recurring tokens of clients
                         $recurring_tokens = $chip->list_tokens($customers_api['id'])['results'];
                         CE_Lib::log(4, $recurring_tokens);
-                        die();
 
                     } catch (Exception $e) {
                         $profile_id = '';
