@@ -6,7 +6,7 @@ This plugin adds CHIP payment method option to your Clientexec.
 
 ## Installation
 
-1) [Download.](https://github.com/CHIPAsia/chip-for-clientexec/archive/main.zip)
+1) Download [CHIP for Clientexec](https://github.com/CHIPAsia/chip-for-clientexec/archive/main.zip)
 2) Extract the main.zip file to the `plugins/gateways/` with the name directory name `chip`. The directory should be `plugins/gateways/chip/`.
 
 ## Configuration
