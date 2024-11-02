@@ -64,7 +64,7 @@ class PluginChipCallback extends PluginCallback
       $cPlugin->setAmount($paid_amount);
       $cPlugin->setAction('charge'); // charge or refund
 
-      $transaction = "CHIP: Purchase (ID: {$purchase_id}) with Invoice No: #{$invoice_number} was successfully PAID through callback";
+      $transaction = "CHIP: Purchase ID: {$purchase_id} with Invoice No: #{$invoice_number} was successfully PAID through callback";
       CE_Lib::log(4, $transaction);
 
       $cPlugin->PaymentAccepted($paid_amount, $transaction);
@@ -113,7 +113,7 @@ class PluginChipCallback extends PluginCallback
       $cPlugin->setAmount($paid_amount);
       $cPlugin->setAction('charge'); // charge or refund
 
-      $transaction = "CHIP: Purchase (ID: {$purchase_id}) with Invoice No: #{$invoice_number} was successfully PAID";
+      $transaction = "CHIP: Purchase ID: {$purchase_id} with Invoice No: #{$invoice_number} was successfully PAID";
       CE_Lib::log(4, $transaction);
 
       $cPlugin->PaymentAccepted($paid_amount, $transaction);

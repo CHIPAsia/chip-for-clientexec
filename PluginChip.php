@@ -73,41 +73,41 @@ class PluginChip extends GatewayPlugin
 
   public function credit($params)
   {
-    // Create plug in class to interact with CE.
     $cPlugin = new Plugin($params['invoiceNumber'], 'chip', $this->user);
-    $cPlugin->setAmount($invoiceTotal);
+    $cPlugin->setAmount($params['invoiceTotal']);
 
-    // Checking for refund
-    if (isset($params['refund']) && $params['refund']) {
-      $cPlugin->setAction('refund');
+    $cPlugin->setAction('refund');
+    $transactionId = $params['invoiceRefundTransactionId'];
 
-      // Get transid
-      $transactionId = $params['invoiceRefundTransactionId'];
+    $brand_id = $params['plugin_chip_Brand ID'];
+    $secret_key = $params['plugin_chip_Secret Key'];
 
-      // Refund thru CHIP API
-      $result = $chip->refund_payment($transactionId, array('amount' => round($invoiceTotal * 100)));
+    $chip = ChipApi::get_instance($secret_key, $brand_id);
+    $result = $chip->refund_payment($transactionId, []);
 
-      // If error
-      if (!array_key_exists('id', $result) or $result['status'] != 'success') {
-        CE_Lib::log(4, array(
-          'status' => 'error',
-          'rawdata' => json_encode($result),
-          'transid' => $transactionId,
-        ));
+    if (!array_key_exists('id', $result) or $result['status'] != 'success') {
+      CE_Lib::log(4, array(
+        'status' => 'error',
+        'rawdata' => json_encode($result),
+        'transid' => $transactionId,
+      ));
 
-        $cPlugin->PaymentRejected($this->user->lang("There was an error performing this operation.") . " " . $result['status']);
-        return $this->user->lang("There was an error performing this operation.") . " " . $result['status'];
-      } else {
-        CE_Lib::log(4, array(
-          'status' => 'success',
-          'rawdata' => json_encode($result),
-          'transid' => $result['id'],
-          'fees' => $result['payment']['fee_amount'] / 100,
-        ));
+      $cPlugin->PaymentRejected($this->user->lang("There was an error performing this operation.") . " " . $result['status']);
+      return $this->user->lang("There was an error performing this operation.") . " " . $result['status'];
+    } else {
+      $refund_id = $result['id'];
 
-        $cPlugin->PaymentAccepted($invoiceTotal, "CHIP refund of RM { $amount } was successfully processed.", $transactionId);
-        return array('AMOUNT' => $invoiceTotal);
-      }
+      CE_Lib::log(4, array(
+        'status' => 'success',
+        'rawdata' => json_encode($result),
+        'transid' => $refund_id,
+        'fees' => number_format($result['payment']['fee_amount'] / 100, 2, '.', ''),
+      ));
+
+      $chip_refund_amount = number_format($result['payment']['amount'] / 100, 2, '.', '');
+
+      $cPlugin->PaymentAccepted($chip_refund_amount, "CHIP refund of RM {$chip_refund_amount} was successfully processed. Refund ID: {$refund_id}", $result['id']);
+      return array('AMOUNT' => $chip_refund_amount);
     }
   }
 
@@ -186,15 +186,11 @@ class PluginChip extends GatewayPlugin
     $chip = ChipApi::get_instance($secret_key, $brand_id);
     $create_payment = $chip->create_payment($purchase_params);
 
-    // $newUser = new User($customerId);
-    // var_dump($this->user);
-    // exit;
-    // $invoice = new Invoice($params['invoiceNumber']);
     $cPlugin = new Plugin($params['invoiceNumber'], 'chip', $this->user);
     $cPlugin->setTransactionID($create_payment['id']);
     $cPlugin->setAmount($params['invoiceTotal']);
 
-    $transaction = 'CHIP payment of ' . number_format($params['invoiceTotal'], 2) . " was marked 'pending'. Original Signup Invoice: " . $params['invoiceNumber'] . " (OrderID: " . $create_payment['id'] . ")";
+    $transaction = 'CHIP payment of ' . number_format($params['invoiceTotal'], 2) . " was marked 'pending'. Original Signup Invoice: " . $params['invoiceNumber'] . " (Purchase ID: " . $create_payment['id'] . ")";
     $cPlugin->PaymentPending($transaction, $create_payment['id']);
 
     header('Location:' . $create_payment['checkout_url'], true, 303);
@@ -210,12 +206,6 @@ class PluginChip extends GatewayPlugin
       $chip = ChipApi::get_instance($secret_key, $brand_id);
       $chip_public_key = $chip->public_key();
 
-      // $pkey_exploded = explode( '-----END PUBLIC KEY-----', $chip_public_key );
-      // $pkey_last_element = sizeof( $pkey_exploded ) - 1;
-      // $pkey_exploded[$pkey_last_element] = '-----END PUBLIC KEY-----';
-      // $pkey_exploded[] = $brand_id;
-
-      // $new_public_key = implode( "\n", $pkey_exploded );
       $new_public_key = $chip_public_key . $brand_id;
       $this->settings->updateValue('plugin_chip_Public Key', $new_public_key);
     }
