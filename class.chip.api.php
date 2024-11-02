@@ -1,28 +1,29 @@
 <?php
 
-define("ROOT_URL", "https://gate.chip-in.asia");
+define("CHIP_API_ROOT_URL", "https://gate.chip-in.asia");
 
-class Chip
+class ChipApi
 {
   private static $_instance;
   private $require_empty_string_encoding = false;
 
   private $brand_id;
   private $private_key;
-  
-  public static function get_instance($secret_key, $brand_id) {
 
-    if ( self::$_instance == null ) {
+  public static function get_instance($secret_key, $brand_id)
+  {
+
+    if (self::$_instance == null) {
       self::$_instance = new self($secret_key, $brand_id);
     }
 
     return self::$_instance;
   }
-  
+
   public function __construct($private_key, $brand_id)
   {
     $this->private_key = $private_key;
-    $this->brand_id    = $brand_id;
+    $this->brand_id = $brand_id;
   }
 
   public function create_payment($params)
@@ -75,19 +76,23 @@ class Chip
     return $this->call('GET', "/clients/?q={$email_encoded}");
   }
 
-  public function patch_client($client_id, $params) {
+  public function patch_client($client_id, $params)
+  {
     return $this->call('PATCH', "/clients/{$client_id}/", $params);
   }
 
-  public function delete_token($purchase_id) {
+  public function delete_token($purchase_id)
+  {
     return $this->call('POST', "/purchases/$purchase_id/delete_recurring_token/");
   }
 
-  public function retrieve_token($client_id) {
+  public function retrieve_token($client_id)
+  {
     return $this->call('GET', "/clients/{$client_id}/recurring_tokens/{$client_id}/");
   }
 
-  public function list_tokens($client_id) {
+  public function list_tokens($client_id)
+  {
     return $this->call('GET', "/clients/{$client_id}/recurring_tokens/");
   }
 
@@ -101,7 +106,7 @@ class Chip
   public function public_key()
   {
     $result = $this->call('GET', "/public_key/");
-    
+
     return $result;
   }
 
@@ -134,7 +139,7 @@ class Chip
 
     $response = $this->request(
       $method,
-      sprintf("%s/api/v1%s", ROOT_URL, $route),
+      sprintf("%s/api/v1%s", CHIP_API_ROOT_URL, $route),
       $params,
       [
         'Content-type: application/json',
@@ -158,7 +163,7 @@ class Chip
   {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
-    
+
     if ($method == 'POST') {
       curl_setopt($ch, CURLOPT_POST, 1);
     }
@@ -181,7 +186,7 @@ class Chip
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
     // this to prevent error when account balance called
-    if ($this->require_empty_string_encoding){
+    if ($this->require_empty_string_encoding) {
       curl_setopt($ch, CURLOPT_ENCODING, '');
     }
 
