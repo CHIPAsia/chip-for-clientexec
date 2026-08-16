@@ -8,6 +8,8 @@ require_once __DIR__ . '/class.chip.api.php';
  */
 class PluginChip extends GatewayPlugin
 {
+  const DUITNOW_GROUP = array('duitnow_qr', 'dnqr');
+
   public function getVariables()
   {
     $variables = array(
@@ -178,7 +180,13 @@ class PluginChip extends GatewayPlugin
       $payment_method_whitelist = explode(',', $payment_method_whitelist);
       $diff = array_diff($payment_method_whitelist, ['fpx', 'fpx_b2b1', 'mastercard', 'maestro', 'visa', 'razer_atome', 'razer_grabpay', 'razer_maybankqr', 'razer_shopeepay', 'razer_tng', 'duitnow_qr']);
       if (empty($diff)) {
-        $purchase_params['payment_method_whitelist'] = $payment_method_whitelist;
+        $purchase_params['payment_method_whitelist'] = $this->resolve_duitnow_methods(
+          $payment_method_whitelist,
+          $params['currencytype'],
+          (int) round($params['invoiceTotal'] * 100),
+          $brand_id,
+          $secret_key
+        );
       }
     }
 
@@ -197,9 +205,49 @@ class PluginChip extends GatewayPlugin
     exit();
   }
 
+  private function resolve_duitnow_methods($whitelist, $currency, $amount, $brand_id, $secret_key)
+  {
+    // 1. Short-circuit: no dnqr-group member configured → return unchanged (no API call).
+    $has_group_member = count(array_intersect($whitelist, self::DUITNOW_GROUP)) > 0;
+    if (!$has_group_member) {
+      return $whitelist;
+    }
+
+    // 2. Expand the group in-memory.
+    $expanded = array_values(array_unique(array_merge($whitelist, self::DUITNOW_GROUP)));
+
+    // 3. Static cache keyed by brand + currency + amount-bucket (round to 100-sen steps).
+    static $cache = array();
+    $cache_key = md5($brand_id . '|' . $currency . '|' . intval($amount / 100));
+
+    if (!array_key_exists($cache_key, $cache)) {
+      $chip = ChipApi::get_instance($secret_key, $brand_id);
+      $response = $chip->payment_methods($currency, $amount);
+      if (!is_array($response) || !isset($response['available_payment_methods'])) {
+        // 4. API fail → fallback to expanded whitelist.
+        return $expanded;
+      }
+      $cache[$cache_key] = $response['available_payment_methods'];
+    }
+    $available = $cache[$cache_key];
+
+    // 5. Intersect: keep only group members the merchant actually has.
+    $resolved_group = array_values(array_intersect(self::DUITNOW_GROUP, $available));
+
+    // 6. Priority: dnqr wins when both are present.
+    if (in_array('dnqr', $resolved_group, true)) {
+      $resolved_group = array_values(array_diff($resolved_group, array('duitnow_qr')));
+    }
+
+    // 7. Final: original non-group entries + resolved group.
+    $final = array_values(array_diff($expanded, self::DUITNOW_GROUP));
+    $final = array_merge($final, $resolved_group);
+
+    return $final;
+  }
+
   private function maybe_save_public_key($secret_key, $brand_id)
   {
-
     $public_key = $this->settings->get('plugin_chip_Public Key');
     if (!str_contains($public_key, $brand_id)) {
 
