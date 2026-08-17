@@ -9,6 +9,7 @@ require_once __DIR__ . '/class.chip.api.php';
 class PluginChip extends GatewayPlugin
 {
   const DUITNOW_GROUP = array('duitnow_qr', 'dnqr');
+  const SHOPEE_GROUP = array('razer_shopeepay', 'shopee_pay');
 
   public function getVariables()
   {
@@ -180,7 +181,7 @@ class PluginChip extends GatewayPlugin
       $payment_method_whitelist = explode(',', $payment_method_whitelist);
       $diff = array_diff($payment_method_whitelist, ['fpx', 'fpx_b2b1', 'mastercard', 'maestro', 'visa', 'razer_atome', 'razer_grabpay', 'razer_maybankqr', 'razer_shopeepay', 'razer_tng', 'duitnow_qr']);
       if (empty($diff)) {
-        $purchase_params['payment_method_whitelist'] = $this->resolve_duitnow_methods(
+        $purchase_params['payment_method_whitelist'] = $this->resolve_payment_method_groups(
           $payment_method_whitelist,
           $params['currencytype'],
           (int) round($params['invoiceTotal'] * 100),
@@ -205,16 +206,22 @@ class PluginChip extends GatewayPlugin
     exit();
   }
 
-  private function resolve_duitnow_methods($whitelist, $currency, $amount, $brand_id, $secret_key)
+  private function resolve_payment_method_groups($whitelist, $currency, $amount, $brand_id, $secret_key)
   {
-    // 1. Short-circuit: no dnqr-group member configured → return unchanged (no API call).
-    $has_group_member = count(array_intersect($whitelist, self::DUITNOW_GROUP)) > 0;
+    $groups = array(
+      'dnqr' => self::DUITNOW_GROUP,
+      'shopee' => self::SHOPEE_GROUP,
+    );
+
+    // 1. Short-circuit: no group member configured → return unchanged (no API call).
+    $all_group_members = array_merge(self::DUITNOW_GROUP, self::SHOPEE_GROUP);
+    $has_group_member = count(array_intersect($whitelist, $all_group_members)) > 0;
     if (!$has_group_member) {
       return $whitelist;
     }
 
-    // 2. Expand the group in-memory.
-    $expanded = array_values(array_unique(array_merge($whitelist, self::DUITNOW_GROUP)));
+    // 2. Expand the configured groups in-memory.
+    $expanded = array_values(array_unique(array_merge($whitelist, $all_group_members)));
 
     // 3. Static cache keyed by brand + currency + amount-bucket (round to 100-sen steps).
     static $cache = array();
@@ -231,17 +238,23 @@ class PluginChip extends GatewayPlugin
     }
     $available = $cache[$cache_key];
 
-    // 5. Intersect: keep only group members the merchant actually has.
-    $resolved_group = array_values(array_intersect(self::DUITNOW_GROUP, $available));
-
-    // 6. Priority: dnqr wins when both are present.
-    if (in_array('dnqr', $resolved_group, true)) {
-      $resolved_group = array_values(array_diff($resolved_group, array('duitnow_qr')));
+    // 5. Resolve each configured group against what the merchant actually has.
+    $resolved = array();
+    foreach ($groups as $preferred => $group) {
+      $resolved_group = array_values(array_intersect($group, $available));
+      if (empty($resolved_group)) {
+        continue;
+      }
+      // 6. Priority: preferred member wins when both are present.
+      if (in_array($preferred, $resolved_group, true)) {
+        $resolved_group = array_values(array_diff($resolved_group, array_diff($group, array($preferred))));
+      }
+      $resolved = array_merge($resolved, $resolved_group);
     }
 
-    // 7. Final: original non-group entries + resolved group.
-    $final = array_values(array_diff($expanded, self::DUITNOW_GROUP));
-    $final = array_merge($final, $resolved_group);
+    // 7. Final: original non-group entries + resolved groups.
+    $final = array_values(array_diff($expanded, $all_group_members));
+    $final = array_merge($final, $resolved);
 
     return $final;
   }
