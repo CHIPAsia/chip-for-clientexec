@@ -46,7 +46,7 @@ class PluginChip extends GatewayPlugin
       ),
       lang('Payment Method Whitelist') => array(
         'type' => 'text',
-        'description' => 'Set payment method whitelist separated by comma. Acceptable value: fpx, fpx_b2b1, mastercard, maestro, visa, razer_atome, razer_grabpay, razer_maybankqr, razer_shopeepay, razer_tng, duitnow_qr. Leave blank if unsure.',
+        'description' => 'Set payment method whitelist separated by comma. Acceptable value: fpx, fpx_b2b1, mastercard, maestro, visa, razer_atome, razer_grabpay, razer_maybankqr, shopee_pay, razer_tng, duitnow_qr. Note: razer_shopeepay is legacy and will be migrated to shopee_pay automatically. Leave blank if unsure.',
         'value' => ''
       ),
       lang('Public Key') => array(
@@ -179,8 +179,14 @@ class PluginChip extends GatewayPlugin
 
     if (!empty($payment_method_whitelist = str_replace(' ', '', strtolower($params['plugin_chip_Payment Method Whitelist'])))) {
       $payment_method_whitelist = explode(',', $payment_method_whitelist);
-      $diff = array_diff($payment_method_whitelist, ['fpx', 'fpx_b2b1', 'mastercard', 'maestro', 'visa', 'razer_atome', 'razer_grabpay', 'razer_maybankqr', 'razer_shopeepay', 'razer_tng', 'duitnow_qr']);
+      $diff = array_diff($payment_method_whitelist, ['fpx', 'fpx_b2b1', 'mastercard', 'maestro', 'visa', 'razer_atome', 'razer_grabpay', 'razer_maybankqr', 'razer_shopeepay', 'shopee_pay', 'razer_tng', 'duitnow_qr']);
       if (empty($diff)) {
+        // In-memory migration: legacy razer_shopeepay → modern shopee_pay.
+        if (in_array('razer_shopeepay', $payment_method_whitelist, true) && !in_array('shopee_pay', $payment_method_whitelist, true)) {
+          $payment_method_whitelist = array_map(function ($method) {
+            return $method === 'razer_shopeepay' ? 'shopee_pay' : $method;
+          }, $payment_method_whitelist);
+        }
         $purchase_params['payment_method_whitelist'] = $this->resolve_payment_method_groups(
           $payment_method_whitelist,
           $params['currencytype'],
@@ -210,7 +216,7 @@ class PluginChip extends GatewayPlugin
   {
     $groups = array(
       'dnqr' => self::DUITNOW_GROUP,
-      'shopee' => self::SHOPEE_GROUP,
+      'shopee_pay' => self::SHOPEE_GROUP,
     );
 
     // 1. Short-circuit: no group member configured → return unchanged (no API call).
