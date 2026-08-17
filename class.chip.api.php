@@ -36,11 +36,11 @@ class ChipApi
     return $this->call('POST', "/purchases/{$payment_id}/charge/", $params);
   }
 
-  public function payment_methods($currency)
+  public function payment_methods($currency, $amount = 1000)
   {
     return $this->call(
       'GET',
-      "/payment_methods/?brand_id={$this->brand_id}&currency={$currency}&amount=200"
+      "/payment_methods/?brand_id={$this->brand_id}&currency={$currency}&amount={$amount}"
     );
   }
 
@@ -48,7 +48,7 @@ class ChipApi
   {
     return $this->call(
       'GET',
-      "/payment_methods/?brand_id={$this->brand_id}&currency={$currency}&amount=200&recurring=true"
+      "/payment_methods/?brand_id={$this->brand_id}&currency={$currency}&amount=1000&recurring=true"
     );
   }
 

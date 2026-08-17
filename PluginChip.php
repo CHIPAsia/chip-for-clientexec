@@ -8,6 +8,9 @@ require_once __DIR__ . '/class.chip.api.php';
  */
 class PluginChip extends GatewayPlugin
 {
+  const DUITNOW_GROUP = array('duitnow_qr', 'dnqr');
+  const SHOPEE_GROUP = array('razer_shopeepay', 'shopee_pay');
+
   public function getVariables()
   {
     $variables = array(
@@ -43,7 +46,7 @@ class PluginChip extends GatewayPlugin
       ),
       lang('Payment Method Whitelist') => array(
         'type' => 'text',
-        'description' => 'Set payment method whitelist separated by comma. Acceptable value: fpx, fpx_b2b1, mastercard, maestro, visa, razer_atome, razer_grabpay, razer_maybankqr, razer_shopeepay, razer_tng, duitnow_qr. Leave blank if unsure.',
+        'description' => 'Set payment method whitelist separated by comma. Acceptable value: fpx, fpx_b2b1, mastercard, maestro, visa, razer_atome, razer_grabpay, razer_maybankqr, shopee_pay, razer_tng, duitnow_qr, crypto_coin. Note: razer_shopeepay is legacy and will be migrated to shopee_pay automatically. Leave blank if unsure.',
         'value' => ''
       ),
       lang('Public Key') => array(
@@ -176,9 +179,21 @@ class PluginChip extends GatewayPlugin
 
     if (!empty($payment_method_whitelist = str_replace(' ', '', strtolower($params['plugin_chip_Payment Method Whitelist'])))) {
       $payment_method_whitelist = explode(',', $payment_method_whitelist);
-      $diff = array_diff($payment_method_whitelist, ['fpx', 'fpx_b2b1', 'mastercard', 'maestro', 'visa', 'razer_atome', 'razer_grabpay', 'razer_maybankqr', 'razer_shopeepay', 'razer_tng', 'duitnow_qr']);
+      $diff = array_diff($payment_method_whitelist, ['fpx', 'fpx_b2b1', 'mastercard', 'maestro', 'visa', 'razer_atome', 'razer_grabpay', 'razer_maybankqr', 'razer_shopeepay', 'shopee_pay', 'razer_tng', 'duitnow_qr', 'crypto_coin']);
       if (empty($diff)) {
-        $purchase_params['payment_method_whitelist'] = $payment_method_whitelist;
+        // In-memory migration: legacy razer_shopeepay → modern shopee_pay.
+        if (in_array('razer_shopeepay', $payment_method_whitelist, true) && !in_array('shopee_pay', $payment_method_whitelist, true)) {
+          $payment_method_whitelist = array_map(function ($method) {
+            return $method === 'razer_shopeepay' ? 'shopee_pay' : $method;
+          }, $payment_method_whitelist);
+        }
+        $purchase_params['payment_method_whitelist'] = $this->resolve_payment_method_groups(
+          $payment_method_whitelist,
+          $params['currencytype'],
+          (int) round($params['invoiceTotal'] * 100),
+          $brand_id,
+          $secret_key
+        );
       }
     }
 
@@ -197,9 +212,61 @@ class PluginChip extends GatewayPlugin
     exit();
   }
 
+  private function resolve_payment_method_groups($whitelist, $currency, $amount, $brand_id, $secret_key)
+  {
+    $groups = array(
+      'dnqr' => self::DUITNOW_GROUP,
+      'shopee_pay' => self::SHOPEE_GROUP,
+    );
+
+    // 1. Short-circuit: no group member configured → return unchanged (no API call).
+    $all_group_members = array_merge(self::DUITNOW_GROUP, self::SHOPEE_GROUP);
+    $has_group_member = count(array_intersect($whitelist, $all_group_members)) > 0;
+    if (!$has_group_member) {
+      return $whitelist;
+    }
+
+    // 2. Expand the configured groups in-memory.
+    $expanded = array_values(array_unique(array_merge($whitelist, $all_group_members)));
+
+    // 3. Static cache keyed by brand + currency + amount-bucket (round to 100-sen steps).
+    static $cache = array();
+    $cache_key = md5($brand_id . '|' . $currency . '|' . intval($amount / 100));
+
+    if (!array_key_exists($cache_key, $cache)) {
+      $chip = ChipApi::get_instance($secret_key, $brand_id);
+      $response = $chip->payment_methods($currency, $amount);
+      if (!is_array($response) || !isset($response['available_payment_methods'])) {
+        // 4. API fail → fallback to expanded whitelist.
+        return $expanded;
+      }
+      $cache[$cache_key] = $response['available_payment_methods'];
+    }
+    $available = $cache[$cache_key];
+
+    // 5. Resolve each configured group against what the merchant actually has.
+    $resolved = array();
+    foreach ($groups as $preferred => $group) {
+      $resolved_group = array_values(array_intersect($group, $available));
+      if (empty($resolved_group)) {
+        continue;
+      }
+      // 6. Priority: preferred member wins when both are present.
+      if (in_array($preferred, $resolved_group, true)) {
+        $resolved_group = array_values(array_diff($resolved_group, array_diff($group, array($preferred))));
+      }
+      $resolved = array_merge($resolved, $resolved_group);
+    }
+
+    // 7. Final: original non-group entries + resolved groups.
+    $final = array_values(array_diff($expanded, $all_group_members));
+    $final = array_merge($final, $resolved);
+
+    return $final;
+  }
+
   private function maybe_save_public_key($secret_key, $brand_id)
   {
-
     $public_key = $this->settings->get('plugin_chip_Public Key');
     if (!str_contains($public_key, $brand_id)) {
 
